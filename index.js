@@ -75,7 +75,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // 毎朝9時に行われる処理
 cron.schedule(
-  "56 23 * * *",
+  "30 0 * * *",
   () => {
     hello(client);
   },
