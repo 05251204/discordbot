@@ -1,8 +1,14 @@
-require('dotenv').config(); // .envファイルを読み込む
-const { REST, Routes } = require('discord.js');
-const { APPLICATION_ID, GUILD_ID, TOKEN } = process.env; // .envから変数を読み込む
-const fs = require('node:fs');
-const path = require('node:path');
+import 'dotenv/config';
+import { REST, Routes } from 'discord.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url'; // pathToFileURL を追加
+
+const { APPLICATION_ID, GUILD_ID, TOKEN } = process.env;
+
+// ESMでは__dirnameが使えないため、import.meta.urlからパスを解決
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
@@ -10,18 +16,21 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 
 // 各コマンドのSlashCommandBuilder#toJSON()の出力をデプロイ用に取得
 for (const file of commandFiles) {
-	const filePath = path.join(commandsPath, file);
-	const command = require(filePath);
-	if ('data' in command && 'execute' in command) {
-		commands.push(command.data.toJSON());
-	} else {
-		console.log(`[WARNING] ${filePath} のコマンドには、必須の "data" または "execute" プロパティがありません。`);
-	}
+    const filePath = path.join(commandsPath, file);
+    // path.toFileUrl を pathToFileURL に修正
+    const command = await import(pathToFileURL(filePath).href);
+
+    if ('data' in command.default) {
+        commands.push(command.default.data.toJSON());
+    } else {
+        console.log(`[警告] ${filePath} のコマンドには、必須の "data" プロパティがありません。`);
+    }
 }
 
 // RESTモジュールのインスタンスを構築
 const rest = new REST().setToken(TOKEN);
 
+// コマンドをデプロイ
 (async () => {
 	try {
 		console.log(`${commands.length}個のアプリケーションコマンドのリフレッシュを開始しました。`);

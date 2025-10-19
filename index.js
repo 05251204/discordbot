@@ -1,10 +1,17 @@
-require("dotenv").config();
-const cron = require("node-cron");
-const fs = require("node:fs");
-const path = require("node:path");
-const { Client, Collection, Events, GatewayIntentBits } = require("discord.js");
-const TOKEN = process.env.TOKEN;
-const { hello } = require("./functions/hello.js");
+import "dotenv/config";
+import cron from "node-cron";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url"; // pathToFileURL を追加
+import { Client, Collection, Events, GatewayIntentBits } from "discord.js";
+import { hello } from "./functions/hello.js";
+
+// .envからTOKENを読み込む
+const token = process.env.TOKEN;
+
+// ESMでは__dirnameが使えないため、import.meta.urlからパスを解決
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -17,10 +24,12 @@ const commandFiles = fs
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
-  const command = require(filePath);
+  // path.toFileUrl を pathToFileURL に修正
+  const command = await import(pathToFileURL(filePath).href);
 
-  if ("data" in command && "execute" in command) {
-    client.commands.set(command.data.name, command);
+  // default exportされていることを想定
+  if ("data" in command.default && "execute" in command.default) {
+    client.commands.set(command.default.data.name, command.default);
   } else {
     console.log(
       `[警告] ${filePath} のコマンドには、必須の "data" または "execute" プロパティがありません。`
@@ -66,9 +75,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // 毎朝9時に行われる処理
 cron.schedule(
-  "0 9 * * *",
+  "56 23 * * *",
   () => {
-    // hello関数にclientオブジェクトを渡して実行
     hello(client);
   },
   {
@@ -76,4 +84,4 @@ cron.schedule(
   }
 );
 
-client.login(TOKEN);
+client.login(token);
