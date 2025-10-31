@@ -2,11 +2,9 @@ import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url'; // pathToFileURL を追加
-
+import { fileURLToPath, pathToFileURL } from 'node:url';
 const { APPLICATION_ID, GUILD_ID, TOKEN } = process.env;
 
-// ESMでは__dirnameが使えないため、import.meta.urlからパスを解決
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,7 +15,6 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 // 各コマンドのSlashCommandBuilder#toJSON()の出力をデプロイ用に取得
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
-    // path.toFileUrl を pathToFileURL に修正
     const command = await import(pathToFileURL(filePath).href);
 
     if ('data' in command.default) {
@@ -27,7 +24,6 @@ for (const file of commandFiles) {
     }
 }
 
-// RESTモジュールのインスタンスを構築
 const rest = new REST().setToken(TOKEN);
 
 // コマンドをデプロイ
