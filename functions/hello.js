@@ -40,18 +40,17 @@ async function ask_gemini() {
 - 相手の名前（〇〇君など）は呼ばないでください。
 `,
       config: {
-        // 2.0は高すぎる（サポート外の）可能性があるため、0.8〜1.0程度を推奨します
         temperature: 2.0,
       },
     });
     const helloText = helloResult.text.trim();
 
-    console.log("属性:", contextText);
-    console.log("セリフ:", helloText);
+    //console.log("属性:", contextText);
+    //console.log("セリフ:", helloText);
 
     return [contextText, helloText];
   } catch (error) {
-    console.error("Gemini APIの呼び出し中にエラーが発生しました:", error);
+    //console.error("Gemini APIの呼び出し中にエラーが発生しました:", error);
     return ["エラー", "AIの呼び出し中に問題が発生しました。"];
   }
 }
@@ -71,7 +70,5 @@ async function hello(client) {
     }
   });
 }
-
-ask_gemini();
 
 export { hello };
