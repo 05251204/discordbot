@@ -64,7 +64,7 @@ async function hello(client) {
     );
 
     if (channel) {
-      channel.send("今日の美少女：", context);
+      channel.send(`今日の美少女： ${context}`);
       channel.send("----------");
       channel.send(helloMessage);
     }
