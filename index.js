@@ -70,7 +70,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // 毎朝0時30分にhello関数を実行
 cron.schedule(
-  "30 0 * * *",
+  "0 7 * * *",
   () => {
     hello(client);
   },
