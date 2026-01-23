@@ -6,55 +6,36 @@ on:
     branches: [ "main" ]
   schedule:
     - cron:  '30 21 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [21.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-
-    # キャッシュ
     - name: Cache dependencies
       uses: actions/cache@v3
       with:
         path: ~/.npm
         key: npm-${{ hashFiles('package-lock.json') }} 
         restore-keys: npm-
-
-    # インストール
     - name: npm install command
       run: npm install
     
-    # 実際のコマンド
-    - name: main action...
-      run: > 
-        NOTION_TOKEN=${{secrets.NOTION_TOKEN}}
-        npm run main
-
-    - name: Log action...
-      run: > 
-        npm run log
-
-    - name: git commit & push
+    - name: discord_hello
+      env:
+        TOKEN: ${{secrets.TOKEN}}
+        APPLICATION_ID: ${{secrets.APPLICATION_ID}}
+        GUILD_ID: ${{secrets.GUILD_ID}}
+        GEMINI_API_KEY: ${{secrets.GEMINI_API_KEY}}
       run: |
-        git config core.filemode false
-        if ! git diff --exit-code --quiet
-        then
-          git add --update
-          git config user.name github-actions
-          git config user.email action@github.com
-          git commit -m "Commit by github-actions"
-          git push https://${{github.actor}}:${{secrets.GITHUB_TOKEN}}@github.com/${{github.repository}}.git HEAD:${{github.ref}}
-        fi
+        node scripts/daily_hello.js
