@@ -2,6 +2,7 @@
   "type": "module",
   "dependencies": {
     "@google/genai": "^1.25.0",
+    "@notionhq/client": "^5.8.0",
     "discord.js": "^14.23.2",
     "dotenv": "^17.2.3",
     "node-cron": "^4.2.1"

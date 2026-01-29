@@ -67,15 +67,3 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   }
 });
-
-cron.schedule(
-  "0 7 * * *",
-  () => {
-    hello(client);
-  },
-  {
-    timezone: "Asia/Tokyo",
-  }
-);
-
-client.login(token);
