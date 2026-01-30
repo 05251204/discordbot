@@ -18,7 +18,5 @@ async function weather(){
   }
 }
 
-
-weather();
-
+console.log(await weather());
 export { weather };
