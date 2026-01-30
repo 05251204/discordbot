@@ -2,39 +2,33 @@ name: hello
 
 on:
   push:
-      branches: [ "main" ]
-        schedule:
-            - cron: '30 21 * * *'
-              workflow_dispatch:
+    branches: ["main"]
+  schedule:
+    - cron: "30 21 * * *"
+  workflow_dispatch:
 
-              jobs:
-                build:
-                    runs-on: ubuntu-latest
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-                        steps:
-                            - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-                                - name: Use Node.js 20 (LTS)
-                                      uses: actions/setup-node@v4 # v3からv4にアップグレード
-                                            with:
-                                                    node-version: '20' # 21.x から 20 (LTS) に変更
-                                                            cache: 'npm'
+      - name: Use Node.js 20 (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci || npm install
 
-                                                                # actions/setup-node@v4 の cache機能を使うため、手動の cacheステップは削除してスッキリさせます
-
-                                                                    - name: Install dependencies
-                                                                          # CI環境では npm install ではなく npm ci を使うのが標準です
-                                                                                # (package-lock.json に基づいて正確にインストールするため)
-                                                                                      run: npm ci || npm install 
-                                                                                          
-                                                                                              - name: discord_hello
-                                                                                                    env:
-                                                                                                            TOKEN: ${{ secrets.TOKEN }}
-                                                                                                                    APPLICATION_ID: ${{ secrets.APPLICATION_ID }}
-                                                                                                                            GUILD_ID: ${{ secrets.GUILD_ID }}
-                                                                                                                                    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-                                                                                                                                            # もし Notion を使うなら以下も追加が必要です
-                                                                                                                                                    NOTION_INTEGRATION_SECRET: ${{ secrets.NOTION_INTEGRATION_SECRET }}
-                                                                                                                                                            NOTION_DATASOURCE_ID: ${{ secrets.NOTION_DATASOURCE_ID }}
-                                                                                                                                                                  run: |
-                                                                                                                                                                          node scripts/daily_hello.js
+      - name: discord_hello
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+          APPLICATION_ID: ${{ secrets.APPLICATION_ID }}
+          GUILD_ID: ${{ secrets.GUILD_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_INTEGRATION_SECRET: ${{ secrets.NOTION_INTEGRATION_SECRET }}
+          NOTION_DATASOURCE_ID: ${{ secrets.NOTION_DATASOURCE_ID }}
+        run: |
+          node scripts/daily_hello.js
