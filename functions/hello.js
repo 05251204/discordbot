@@ -5,7 +5,7 @@ import { ChannelType, EmbedBuilder } from "discord.js";
 // 各機能のインポート
 import { weather } from "./weather.js";
 import { getDelayInfo } from "./delay.js";
-import { fetchFormattedTasks } from "./todo.js";
+import { fetchTasks } from "./todo.js";
 
 const { GEMINI_API_KEY } = process.env;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
@@ -26,11 +26,17 @@ async function ask_gemini() {
     const attribute = contextText ? contextText.trim() : "世話焼きな幼馴染";
 
     // 2. 情報収集
-    const [weatherData, delayList, todoText] = await Promise.all([
+    const [weatherData, delayList, tasks] = await Promise.all([
       weather(),
       getDelayInfo(),
-      fetchFormattedTasks(),
+      fetchTasks(),
     ]);
+
+    // LLM用タスクのフィルタリング: 最上位の親要素（parents[0]）が「イベント」のものを除外
+    const filteredTasks = tasks.filter(task => task.parents[0] !== "イベント");
+    const todoTextForAI = filteredTasks.map(t => {
+      return `## タスク: ${t.hierarchy}\n- **期日**: ${t.dateStr}\n- **本文内容**:\n${t.contentStr}\n`;
+    }).join("\n---\n\n") || "該当するタスクはありません。";
 
     const isDelay = delayList.length > 0 && !delayList[0].includes("平常運転");
     const delayInfoForAI = isDelay
@@ -52,7 +58,7 @@ async function ask_gemini() {
 ${delayInfoForAI}
 
 【タスク（Notionより）】
-${todoText}
+${todoTextForAI}
 
 ### セリフ作成の指示
 1. **「状況」をキャラクターの「感想」や「助言」に変換してください**:
@@ -84,7 +90,7 @@ ${todoText}
       ? helloResult.response.text()
       : helloResult.text;
 
-    return [attribute, helloMessage.trim(), weatherData, delayList];
+    return [attribute, helloMessage.trim(), weatherData, delayList, tasks];
   } catch (error) {
     console.error("Gemini API Error:", error);
     return [
@@ -92,12 +98,13 @@ ${todoText}
       "おーい、起きてー！…あ、ごめん、今ちょっと頭がぼーっとしちゃった。自分で天気見てくれる？",
       null,
       [],
+      [],
     ];
   }
 }
 
 async function hello(client) {
-  const [context, helloMessage, weatherData, delayList] = await ask_gemini();
+  const [context, helloMessage, weatherData, delayList, tasks] = await ask_gemini();
 
   const promises = [];
   for (const guild of client.guilds.cache.values()) {
@@ -118,6 +125,10 @@ async function hello(client) {
         .setTimestamp();
 
       if (weatherData && weatherData.detail) {
+        const todoSummary = tasks.length > 0 
+          ? tasks.map(t => `・${t.title} (${t.dateStr})`).join("\n")
+          : "なし";
+
         embed.addFields(
           {
             name: "📍 天気",
@@ -129,6 +140,11 @@ async function hello(client) {
             value: isDelay ? delayList.join("\n") : "🟢 平常運転",
             inline: true,
           },
+          {
+            name: "📋 タスク",
+            value: todoSummary.length > 1024 ? todoSummary.substring(0, 1021) + "..." : todoSummary,
+            inline: false,
+          }
         );
       }
 

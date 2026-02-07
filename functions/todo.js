@@ -74,49 +74,104 @@ async function getPageContent(pageId, indentLevel = 0) {
     return contentList;
 }
 
-export async function fetchFormattedTasks() {
+export async function fetchTasks() {
+
     try {
+
         const targetDate = new Date();
+
         targetDate.setDate(targetDate.getDate() + 7);
+
         const isoDate = targetDate.toISOString().split('T')[0];
 
+
+
+        // 既存のコードが dataSources.query を使用しているため、その形式を維持します
+
         const response = await notion.dataSources.query({
+
             data_source_id: NOTION_DATASOURCE_ID,
+
             filter: {
+
                 and: [
+
                     { property: "済", checkbox: { equals: false } },
+
                     { property: "日付", date: { on_or_before: isoDate } }
+
                 ]
+
             }
+
         });
 
-        let formattedOutput = "";
+
+
+        const tasks = [];
+
+
 
         for (const page of response.results) {
+
             await new Promise(resolve => setTimeout(resolve, 350)); // API制限回避
 
+
+
             const title = page.properties["名前"]?.title?.[0]?.text?.content || "タイトルなし";
+
             const dateData = page.properties["日付"]?.date;
-            const dateStr = dateData ? `${dateData.start}${dateData.end ? " 〜 " + dateData.end : ""}` : "未設定";
+
+            const dateStr = dateData ? `${dateData.start}${dateData.end ? " 〜 " + dateData.end : " (1日)"}` : "未設定";
+
+
 
             const parentPathList = await getParentPath(page);
-            const hierarchy = [...parentPathList, title].join(" > ");
+
             const contentLines = await getPageContent(page.id);
+
             const contentStr = contentLines.length > 0 ? contentLines.join("\n") : "(詳細なし)";
 
-            formattedOutput += `## タスク: ${hierarchy}\n`;
-            formattedOutput += `- **期日**: ${dateStr}\n`;
-            formattedOutput += `- **本文内容**:\n${contentStr}\n`;
-            formattedOutput += `\n---\n\n`;
+
+
+            tasks.push({
+
+                title,
+
+                dateStr,
+
+                parents: parentPathList, // [最上位, ..., 直近]
+
+                contentStr,
+
+                hierarchy: [...parentPathList, title].join(" > ")
+
+            });
+
         }
 
-        return formattedOutput || "該当するタスクはありません。";
+
+
+        return tasks;
+
+
 
     } catch (error) {
+
         console.error('データ取得エラー:', error);
+
         throw error;
+
     }
+
 }
 
-const result = await fetchFormattedTasks();
-console.log(result);
+
+
+// 既存のトップレベルでの実行コードは削除または修正が必要です
+
+// 一旦コメントアウトするか、削除します
+
+// const result = await fetchTasks();
+
+// console.log(result);
