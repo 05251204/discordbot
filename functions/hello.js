@@ -10,79 +10,77 @@ import { fetchTasks } from "./todo.js";
 const { GEMINI_API_KEY } = process.env;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
+function toPercentNumber(value) {
+  if (typeof value !== "string") return 0;
+  const matched = value.match(/\d+/);
+  return matched ? Number(matched[0]) : 0;
+}
+
+function hasRainForecast(weatherData) {
+  if (!weatherData || typeof weatherData !== "object") return false;
+  const morning = toPercentNumber(weatherData.chanceOfRain?.T06_12);
+  const afternoon = toPercentNumber(weatherData.chanceOfRain?.T12_18);
+  return morning > 0 || afternoon > 0;
+}
+
+function getJstWeekday() {
+  return new Intl.DateTimeFormat("ja-JP", {
+    weekday: "long",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date());
+}
+
+function buildPromptWeather(weatherData) {
+  if (!weatherData || typeof weatherData !== "object") return "取得失敗";
+  const telop = weatherData.telop || "不明";
+  const maxTemp = weatherData.temperature?.max?.celsius ?? "--";
+  const rainMorning = weatherData.chanceOfRain?.T06_12 ?? "--";
+  const rainAfternoon = weatherData.chanceOfRain?.T12_18 ?? "--";
+  return `${telop} / 最高${maxTemp}℃ / 降水:午前${rainMorning}・午後${rainAfternoon}`;
+}
+
 async function ask_gemini() {
   try {
-    // 1. キャラクター属性の決定
-    const contextResult = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents:
-        "親しみやすい二次元の女性の属性を一つ挙げてください（例：世話焼きな幼馴染、高飛車なツンデレお嬢様、常に眠そうなダウナー系、元気いっぱいの後輩、おっとりした年上の近所のお姉さんなど）。属性名のみを出力してください。",
-      config: { temperature: 1.8 },
-    });
-
-    let contextText = contextResult.response
-      ? contextResult.response.text()
-      : contextResult.text;
-    const attribute = contextText ? contextText.trim() : "世話焼きな幼馴染";
-
-    // 2. 情報収集
     const [weatherData, delayList, tasks] = await Promise.all([
       weather(),
       getDelayInfo(),
       fetchTasks(),
     ]);
 
-    // LLM用タスクのフィルタリング: 最上位の親要素（parents[0]）が「イベント」のものを除外
-    const filteredTasks = tasks.filter(task => task.parents[0] !== "イベント");
-    const todoTextForAI = filteredTasks.map(t => {
-      return `## タスク: ${t.hierarchy}\n- **期日**: ${t.dateStr}\n- **本文内容**:\n${t.contentStr}\n`;
-    }).join("\n---\n\n") || "該当するタスクはありません。";
-
-    const isDelay = delayList.length > 0 && !delayList[0].includes("平常運転");
-    const delayInfoForAI = isDelay
-      ? delayList.join("\n")
-      : "平常運転（問題なし）";
-
-    // 3. プロンプト作成（行動描写を廃止し、セリフの質感に特化）
     const prompt = `
-あなたは「${attribute}」という設定のキャラクターです。
-朝、まだ寝ている友人の部屋に入ってきて、あなたらしい言い方で起こすシーンのセリフを作成してください。
+あなたは、クラスで私の隣の席に座っている女子高生（ギャル）として振る舞ってください。
 
-### あなたが把握している状況（友人はまだ知りません）
-【今日の天気】
-- 概況: ${weatherData.detail?.weather}
-- 気温: 最高${weatherData.temperature?.max?.celsius}度
-- 降水確率: 午前${weatherData.chanceOfRain?.T06_12}% / 午後${weatherData.chanceOfRain?.T12_18}%
+■キャラクター設定
+・一人称：あーし
+・二人称：オタクくん
+・性格：明るくハイテンションで、オタクくんを特別に気にかけている「オタクに優しいギャル」です。
+・関係性：毎日隣の席で、趣味の話や体調の話を親身に聞き合えるほど心の距離が近い同級生。
 
-【電車の状況】
-${delayInfoForAI}
+■入力情報（プログラムから動的に挿入されます）
+・今日の天気：{weather}
+・今日の曜日：{day_of_the_week}
 
-【タスク（Notionより）】
-${todoTextForAI}
+■口調のルール
+・語尾に「～じゃね？」「～だよね」「～じゃんｗ」「～すぎ！」など、フランクで温かいギャル語を使ってください。
+・「オタクくん、おはよー！」という第一声から始めてください。
 
-### セリフ作成の指示
-1. **「状況」をキャラクターの「感想」や「助言」に変換してください**:
-   - 数値を機械的に読み上げるのは厳禁です。
-   - キャラクターの性格に合わせて、「今日は冷えるから厚着してね」「雨が降りそうだから傘忘れないで」のように、友人を気遣ったり、急かしたりする自然な言葉に変えてください。
-   - 電車の遅延があるなら、具体的にどの路線が大変そうか、あなたの性格らしい反応（心配、からかい、呆れなど）を交えて教えてください。
-   
-2. **タスクの扱い**:
-   - Notionの情報をそのまま読み上げるのではなく、期限が近いものや山積みのタスクに対して、「今日が締め切りのやつあるよ！」「まだ終わってないのあるでしょ？」と、あなたのフィルターを通して指摘してください。
+■話題と内容の指示
+・提供された「天気」と「曜日」の情報をセリフの中に自然に盛り込んでください。
+・学校の事務的な話（授業や先生の話）は避け、オタクくんの趣味や昨夜の過ごし方、体調を気遣う内容をメインにしてください。
 
-3. **純粋なセリフのみを出力**:
-   - (カーテンを開ける) などの動作描写は一切含めないでください。言葉だけでその場の空気感を表現してください。
-   - 「了解しました」などの前置き、自分の名前、相手の名前の呼びかけは禁止です。
-
-4. **構成**:
-   - 長さは3〜5文程度。
-   - 起こす言葉 → 状況を踏まえた助言や小言 → 締めの言葉。
-
-それでは、${attribute}としておはようの挨拶をお願いします。
+■出力の厳格な制約
+・出力は「キャラクターのセリフのみ」としてください。
+・セリフの後に「次は～について話しましょうか？」といった、会話を誘導するメタ的な発言や解説は絶対に含めないでください。
+・出力の分量は、4行から5行程度にしてください。
 `;
+
+    const promptWithData = prompt
+      .replace("{weather}", buildPromptWeather(weatherData))
+      .replace("{day_of_the_week}", getJstWeekday());
 
     const helloResult = await ai.models.generateContent({
       model: "gemini-2.0-flash",
-      contents: prompt,
+      contents: promptWithData,
       config: { temperature: 1.4 },
     });
 
@@ -90,11 +88,10 @@ ${todoTextForAI}
       ? helloResult.response.text()
       : helloResult.text;
 
-    return [attribute, helloMessage.trim(), weatherData, delayList, tasks];
+    return [helloMessage.trim(), weatherData, delayList, tasks];
   } catch (error) {
     console.error("Gemini API Error:", error);
     return [
-      "通信エラー",
       "おーい、起きてー！…あ、ごめん、今ちょっと頭がぼーっとしちゃった。自分で天気見てくれる？",
       null,
       [],
@@ -104,7 +101,7 @@ ${todoTextForAI}
 }
 
 async function hello(client) {
-  const [context, helloMessage, weatherData, delayList, tasks] = await ask_gemini();
+  const [helloMessage, weatherData, delayList, tasks] = await ask_gemini();
 
   const promises = [];
   for (const guild of client.guilds.cache.values()) {
@@ -118,37 +115,89 @@ async function hello(client) {
         !delayList[0].includes("平常運転") &&
         !delayList[0].includes("ありません");
 
-      const embed = new EmbedBuilder()
-        .setColor(isDelay ? 0xff0000 : 0x87ceeb) // 遅延時は赤、平常時は空色
-        .setTitle(`今日の担当：${context}`)
-        .setDescription(helloMessage)
-        .setTimestamp();
+      const isRainAlert = hasRainForecast(weatherData);
+      const alertTags = [];
+      if (isDelay) alertTags.push("🚨電車遅延");
+      if (isRainAlert) alertTags.push("☔雨予報");
 
-      if (weatherData && weatherData.detail) {
-        const todoSummary = tasks.length > 0 
-          ? tasks.map(t => `・${t.title} (${t.dateStr})`).join("\n")
+      const title =
+        alertTags.length > 0
+          ? `${alertTags.join(" ")} 今日の朝メモ`
+          : "今日の朝メモ";
+      const description =
+        alertTags.length > 0
+          ? `【${alertTags.join("・")}】\n${helloMessage}`
+          : helloMessage;
+
+      const weatherTelop =
+        weatherData && typeof weatherData === "object" && weatherData.telop
+          ? weatherData.telop
+          : "取得失敗";
+      const maxTemp =
+        weatherData &&
+        typeof weatherData === "object" &&
+        weatherData.temperature?.max?.celsius
+          ? `${weatherData.temperature.max.celsius}℃`
+          : "--";
+      const rainMorning =
+        weatherData &&
+        typeof weatherData === "object" &&
+        weatherData.chanceOfRain?.T06_12
+          ? weatherData.chanceOfRain.T06_12
+          : "--";
+      const rainAfternoon =
+        weatherData &&
+        typeof weatherData === "object" &&
+        weatherData.chanceOfRain?.T12_18
+          ? weatherData.chanceOfRain.T12_18
+          : "--";
+
+      const weatherSummary = `${weatherTelop} (${maxTemp})\n☂️ 午前${rainMorning} / 午後${rainAfternoon}`;
+      const delaySummary = isDelay ? delayList.join("\n") : "🟢 平常運転";
+      const todoSummary =
+        tasks.length > 0
+          ? tasks.map((t) => `・${t.title} (${t.dateStr})`).join("\n")
           : "なし";
 
-        embed.addFields(
-          {
-            name: "📍 天気",
-            value: `${weatherData.telop} (${weatherData.temperature.max.celsius}℃)`,
-            inline: true,
-          },
-          {
-            name: isDelay ? "🚨 運行情報" : "🚃 運行情報",
-            value: isDelay ? delayList.join("\n") : "🟢 平常運転",
-            inline: true,
-          },
-          {
-            name: "📋 タスク",
-            value: todoSummary.length > 1024 ? todoSummary.substring(0, 1021) + "..." : todoSummary,
-            inline: false,
-          }
-        );
-      }
+      const embed = new EmbedBuilder()
+        .setColor(isDelay ? 0xff0000 : isRainAlert ? 0xf5a623 : 0x87ceeb)
+        .setTitle(title)
+        .setDescription(description)
+        .setTimestamp();
 
-      promises.push(channel.send({ embeds: [embed] }));
+      embed.addFields(
+        {
+          name: isRainAlert ? "☔ 天気（雨注意）" : "📍 天気",
+          value:
+            weatherSummary.length > 1024
+              ? weatherSummary.substring(0, 1021) + "..."
+              : weatherSummary,
+          inline: true,
+        },
+        {
+          name: isDelay ? "🚨 運行情報（遅延）" : "🚃 運行情報",
+          value:
+            delaySummary.length > 1024
+              ? delaySummary.substring(0, 1021) + "..."
+              : delaySummary,
+          inline: true,
+        },
+        {
+          name: "📋 タスク",
+          value:
+            todoSummary.length > 1024
+              ? todoSummary.substring(0, 1021) + "..."
+              : todoSummary,
+          inline: false,
+        },
+      );
+
+      const messagePayload =
+        alertTags.length > 0
+          ? { content: `⚠️ ${alertTags.join(" / ")}`, embeds: [embed] }
+          : { embeds: [embed] };
+
+      promises.push(channel.send(messagePayload));
     }
   }
   await Promise.all(promises);
