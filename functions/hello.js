@@ -10,6 +10,26 @@ import { fetchTasks } from "./todo.js";
 const { GEMINI_API_KEY } = process.env;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
+const DUMMY_HELLO_PAYLOAD = {
+  helloMessage: `オタクくん、おはよー！
+今日、晴れベースだけど午後ちょい雲増えるっぽいから、羽織れるのあると安心じゃね？
+湘南新宿ラインちょい遅れ気味みたいだから、いつもより10分早め行動が勝ち筋だよね！
+帰りにコンビニ寄るなら、あーしの分のチョコもよろしくじゃんｗ`,
+  weatherData: {
+    telop: "晴れ時々くもり",
+    temperature: { max: { celsius: "21" } },
+    chanceOfRain: { T06_12: "10%", T12_18: "20%" },
+  },
+  delayList: ["⚠️ 湘南新宿ライン: 信号トラブルの影響で10分程度の遅れ"],
+  tasks: [{ title: "傘をカバンに入れる", dateStr: "2026-03-07 (1日)" }],
+};
+
+function truncateText(text, maxLength) {
+  if (typeof text !== "string") return "";
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
 function toPercentNumber(value) {
   if (typeof value !== "string") return 0;
   const matched = value.match(/\d+/);
@@ -39,7 +59,54 @@ function buildPromptWeather(weatherData) {
   return `${telop} / 最高${maxTemp}℃ / 降水:午前${rainMorning}・午後${rainAfternoon}`;
 }
 
-async function ask_gemini() {
+function isDelayDetected(delayList) {
+  if (!Array.isArray(delayList) || delayList.length === 0) return false;
+  const firstItem = delayList[0] ?? "";
+  return !firstItem.includes("平常運転") && !firstItem.includes("ありません");
+}
+
+function buildDelaySummary(delayList, isDelay) {
+  if (isDelay && Array.isArray(delayList) && delayList.length > 0) {
+    return delayList.join("\n");
+  }
+  if (Array.isArray(delayList) && delayList.length > 0) {
+    const joined = delayList.join("\n");
+    return joined.includes("平常運転") || joined.includes("ありません")
+      ? "🟢 平常運転"
+      : joined;
+  }
+  return "遅延情報なし";
+}
+
+function buildNotificationContent({
+  helloMessage,
+  weatherData,
+  delayList,
+  alertTags,
+}) {
+  const weatherLine = `🌤 天気: ${buildPromptWeather(weatherData)}`;
+  const isDelay = isDelayDetected(delayList);
+  const delaySummary = buildDelaySummary(delayList, isDelay).replace(/\n+/g, " / ");
+  const delayLine = isDelay ? `🚨 遅延: ${delaySummary}` : `🚃 遅延: ${delaySummary}`;
+  const lines = [];
+  if (alertTags.length > 0) lines.push(`⚠️ ${alertTags.join(" / ")}`);
+  lines.push(weatherLine);
+  lines.push(delayLine);
+  lines.push("💬 メッセージ:");
+  lines.push(helloMessage.trim());
+  return truncateText(lines.join("\n"), 1900);
+}
+
+async function ask_gemini(options = {}) {
+  if (options.useDummyData) {
+    return [
+      DUMMY_HELLO_PAYLOAD.helloMessage,
+      DUMMY_HELLO_PAYLOAD.weatherData,
+      DUMMY_HELLO_PAYLOAD.delayList,
+      DUMMY_HELLO_PAYLOAD.tasks,
+    ];
+  }
+
   try {
     const [weatherData, delayList, tasks] = await Promise.all([
       weather(),
@@ -100,8 +167,8 @@ async function ask_gemini() {
   }
 }
 
-async function hello(client) {
-  const [helloMessage, weatherData, delayList, tasks] = await ask_gemini();
+async function hello(client, options = {}) {
+  const [helloMessage, weatherData, delayList, tasks] = await ask_gemini(options);
 
   const promises = [];
   for (const guild of client.guilds.cache.values()) {
@@ -110,10 +177,7 @@ async function hello(client) {
     );
 
     if (channel) {
-      const isDelay =
-        delayList.length > 0 &&
-        !delayList[0].includes("平常運転") &&
-        !delayList[0].includes("ありません");
+      const isDelay = isDelayDetected(delayList);
 
       const isRainAlert = hasRainForecast(weatherData);
       const alertTags = [];
@@ -153,7 +217,7 @@ async function hello(client) {
           : "--";
 
       const weatherSummary = `${weatherTelop} (${maxTemp})\n☂️ 午前${rainMorning} / 午後${rainAfternoon}`;
-      const delaySummary = isDelay ? delayList.join("\n") : "🟢 平常運転";
+      const delaySummary = buildDelaySummary(delayList, isDelay);
       const todoSummary =
         tasks.length > 0
           ? tasks.map((t) => `・${t.title} (${t.dateStr})`).join("\n")
@@ -192,10 +256,15 @@ async function hello(client) {
         },
       );
 
-      const messagePayload =
-        alertTags.length > 0
-          ? { content: `⚠️ ${alertTags.join(" / ")}`, embeds: [embed] }
-          : { embeds: [embed] };
+      const messagePayload = {
+        content: buildNotificationContent({
+          helloMessage,
+          weatherData,
+          delayList,
+          alertTags,
+        }),
+        embeds: [embed],
+      };
 
       promises.push(channel.send(messagePayload));
     }

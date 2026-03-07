@@ -17,6 +17,4 @@ async function weather(){
     return "error:weather.js/weather";
   }
 }
-
-console.log(await weather());
 export { weather };
