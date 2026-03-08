@@ -1,0 +1,36 @@
+name: manga-release
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20 (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: manga_release_check
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+          NOTION_INTEGRATION_SECRET: ${{ secrets.NOTION_INTEGRATION_SECRET }}
+          NOTION_BOOK_ID: ${{ secrets.NOTION_BOOK_ID }}
+          NOTION_PURCHASE_ID: ${{ secrets.NOTION_PURCHASE_ID }}
+          MANGA_NOTIFICATION_CHANNEL_ID: ${{ secrets.MANGA_NOTIFICATION_CHANNEL_ID }}
+          RAKUTEN_APPLICATION_ID: ${{ secrets.RAKUTEN_APPLICATION_ID }}
+          APPLICATION_ID: ${{ secrets.APPLICATION_ID }}
+          RAKUTEN_ACCESS_KEY: ${{ secrets.RAKUTEN_ACCESS_KEY }}
+          RAKUTEN_ALLOWED_REFERER: "https://github.com/"
+        run: |
+          node scripts/daily_manga_release.js

@@ -24,6 +24,8 @@ const DUMMY_HELLO_PAYLOAD = {
   tasks: [{ title: "傘をカバンに入れる", dateStr: "2026-03-07 (1日)" }],
 };
 
+const DEFAULT_CHANNEL_NAME = "目覚まし";
+
 function truncateText(text, maxLength) {
   if (typeof text !== "string") return "";
   if (text.length <= maxLength) return text;
@@ -108,11 +110,11 @@ async function ask_gemini(options = {}) {
   }
 
   try {
-    const [weatherData, delayList, tasks] = await Promise.all([
+    const [weatherData, delayList, tasks] = await Promise.allSettled([
       weather(),
       getDelayInfo(),
       fetchTasks(),
-    ]);
+    ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null));
 
     const prompt = `
 あなたは、クラスで私の隣の席に座っている女子高生（ギャル）として振る舞ってください。
@@ -145,17 +147,15 @@ async function ask_gemini(options = {}) {
       .replace("{weather}", buildPromptWeather(weatherData))
       .replace("{day_of_the_week}", getJstWeekday());
 
-    const helloResult = await ai.models.generateContent({
+    const result = await ai.models.generateContent({
       model: "gemini-2.0-flash",
-      contents: promptWithData,
+      contents: [{ role: "user", parts: [{ text: promptWithData }] }],
       config: { temperature: 1.4 },
     });
 
-    let helloMessage = helloResult.response
-      ? helloResult.response.text()
-      : helloResult.text;
+    const helloMessage = result.candidates?.[0]?.content?.parts?.[0]?.text || "おはよー！ちょっと調子悪いみたい。";
 
-    return [helloMessage.trim(), weatherData, delayList, tasks];
+    return [helloMessage.trim(), weatherData, delayList || [], tasks || []];
   } catch (error) {
     console.error("Gemini API Error:", error);
     return [
@@ -170,13 +170,21 @@ async function ask_gemini(options = {}) {
 async function hello(client, options = {}) {
   const [helloMessage, weatherData, delayList, tasks] = await ask_gemini(options);
 
-  const promises = [];
-  for (const guild of client.guilds.cache.values()) {
-    const channel = guild.channels.cache.find(
-      (ch) => ch.name === "目覚まし" && ch.type === ChannelType.GuildText,
-    );
+  const channelId = process.env.HELLO_NOTIFICATION_CHANNEL_ID;
+  const channelName = process.env.HELLO_NOTIFICATION_CHANNEL_NAME ?? DEFAULT_CHANNEL_NAME;
 
-    if (channel) {
+  const promises = [];
+  let foundChannels = 0;
+
+  for (const guild of client.guilds.cache.values()) {
+    const channel =
+      (channelId && guild.channels.cache.get(channelId)) ||
+      guild.channels.cache.find(
+        (ch) => ch.name === channelName && ch.type === ChannelType.GuildText,
+      );
+
+    if (channel && channel.type === ChannelType.GuildText) {
+      foundChannels += 1;
       const isDelay = isDelayDetected(delayList);
 
       const isRainAlert = hasRainForecast(weatherData);
@@ -269,6 +277,13 @@ async function hello(client, options = {}) {
       promises.push(channel.send(messagePayload));
     }
   }
+
+  if (foundChannels === 0) {
+    throw new Error(
+      `通知先チャンネルが見つかりません。HELLO_NOTIFICATION_CHANNEL_ID または "${channelName}" の存在を確認してください。`,
+    );
+  }
+
   await Promise.all(promises);
 }
 

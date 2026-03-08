@@ -29,6 +29,7 @@ jobs:
           GUILD_ID: ${{ secrets.GUILD_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_INTEGRATION_SECRET: ${{ secrets.NOTION_INTEGRATION_SECRET }}
-          NOTION_DATASOURCE_ID: ${{ secrets.NOTION_DATASOURCE_ID }}
+          NOTION_TODO_ID: ${{ secrets.NOTION_TODO_ID }}
+          HELLO_NOTIFICATION_CHANNEL_ID: ${{ secrets.HELLO_NOTIFICATION_CHANNEL_ID }}
         run: |
           node scripts/daily_hello.js

@@ -1,8 +1,12 @@
 {
   "type": "module",
   "scripts": {
-    "test:hello-notification": "node scripts/test_hello_notification.js",
-    "send:dummy-hello": "HELLO_USE_DUMMY_DATA=true node scripts/daily_hello.js"
+    "test:hello": "node scripts/test_hello_notification.js",
+    "test:manga": "node scripts/test_manga_release_notification.js",
+    "send:hello": "node scripts/daily_hello.js",
+    "send:manga": "node scripts/daily_manga_release.js",
+    "send:dummy-hello": "HELLO_USE_DUMMY_DATA=true node scripts/daily_hello.js",
+    "send:dummy-manga-release": "MANGA_USE_DUMMY_DATA=true node scripts/daily_manga_release.js"
   },
   "dependencies": {
     "@google/genai": "^1.25.0",
@@ -10,7 +14,6 @@
     "axios": "^1.13.4",
     "discord.js": "^14.23.2",
     "dotenv": "^17.2.3",
-    "jsdom": "^27.4.0",
-    "node-cron": "^4.2.1"
+    "jsdom": "^27.4.0"
   }
 }

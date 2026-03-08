@@ -12,11 +12,14 @@ client.once(Events.ClientReady, async (c) => {
     console.log("Daily hello message sent successfully.");
   } catch (error) {
     console.error("An error occurred during the daily hello task:", error);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     client.destroy();
-    process.exit(0);
+    console.log("Client destroyed.");
   }
 });
 
-client.login(process.env.TOKEN);
+client.login(process.env.TOKEN).catch(err => {
+  console.error("Login failed:", err);
+  process.exit(1);
+});

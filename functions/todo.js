@@ -1,9 +1,48 @@
 import { Client } from "@notionhq/client";
 import "dotenv/config";
 
-const { NOTION_INTEGRATION_SECRET, NOTION_DATASOURCE_ID } = process.env;
+const { NOTION_INTEGRATION_SECRET } = process.env;
 const PARENT_PROPERTY_NAME = "親アイテム"; 
 const notion = new Client({ auth: NOTION_INTEGRATION_SECRET });
+
+function getTodoContainerId() {
+    return process.env.NOTION_TODO_ID;
+}
+
+function isCompactNotionId(value) {
+    return typeof value === "string" && /^[0-9a-fA-F]{32}$/.test(value);
+}
+
+async function resolveTodoDataSourceId(containerId) {
+    if (isCompactNotionId(containerId)) {
+        const database = await notion.databases.retrieve({ database_id: containerId });
+        const linkedDataSourceId = database.data_sources?.[0]?.id;
+        if (!linkedDataSourceId) {
+            throw new Error("指定したNotionデータベースに紐づくdata_sourceが見つかりません。");
+        }
+        return linkedDataSourceId;
+    }
+
+    try {
+        await notion.dataSources.retrieve({ data_source_id: containerId });
+        return containerId;
+    } catch (dataSourceError) {
+        try {
+            const database = await notion.databases.retrieve({ database_id: containerId });
+            const linkedDataSourceId = database.data_sources?.[0]?.id;
+            if (!linkedDataSourceId) {
+                throw new Error("指定したNotionデータベースに紐づくdata_sourceが見つかりません。");
+            }
+            return linkedDataSourceId;
+        } catch {
+            throw dataSourceError;
+        }
+    }
+}
+
+async function queryTodoContainer(dataSourceId, filter) {
+    return notion.dataSources.query({ data_source_id: dataSourceId, filter });
+}
 
 
 function getTextFromBlock(block) {
@@ -77,6 +116,14 @@ async function getPageContent(pageId, indentLevel = 0) {
 export async function fetchTasks() {
 
     try {
+        const notionTodoContainerId = getTodoContainerId();
+        if (!notionTodoContainerId) {
+            throw new Error(
+                "Notion TODO IDが未設定です。NOTION_TODO_ID を設定してください。"
+            );
+        }
+
+        const dataSourceId = await resolveTodoDataSourceId(notionTodoContainerId);
 
         const targetDate = new Date();
 
@@ -88,21 +135,15 @@ export async function fetchTasks() {
 
         // 既存のコードが dataSources.query を使用しているため、その形式を維持します
 
-        const response = await notion.dataSources.query({
+        const response = await queryTodoContainer(dataSourceId, {
 
-            data_source_id: NOTION_DATASOURCE_ID,
+            and: [
 
-            filter: {
+                { property: "済", checkbox: { equals: false } },
 
-                and: [
+                { property: "日付", date: { on_or_before: isoDate } }
 
-                    { property: "済", checkbox: { equals: false } },
-
-                    { property: "日付", date: { on_or_before: isoDate } }
-
-                ]
-
-            }
+            ]
 
         });
 
