@@ -186,7 +186,7 @@ async function hello(client, options = {}) {
       const title =
         alertTags.length > 0
           ? `${alertTags.join(" ")}`
-          : ""; // タイトルを空にするとEmbedのタイトル行が表示されなくなります（フィールドのみ表示）
+          : null; // タイトルをnullにするとEmbedのタイトル行が表示されなくなります（フィールドのみ表示）
       // content側に挨拶文が含まれるため、通知との重複を避けるためにEmbed側のdescriptionは空にします。
       const description = "";
 
