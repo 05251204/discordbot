@@ -82,19 +82,10 @@ function buildDelaySummary(delayList, isDelay) {
 
 function buildNotificationContent({
   helloMessage,
-  weatherData,
-  delayList,
   alertTags,
 }) {
-  const weatherLine = `🌤 天気: ${buildPromptWeather(weatherData)}`;
-  const isDelay = isDelayDetected(delayList);
-  const delaySummary = buildDelaySummary(delayList, isDelay).replace(/\n+/g, " / ");
-  const delayLine = isDelay ? `🚨 遅延: ${delaySummary}` : `🚃 遅延: ${delaySummary}`;
   const lines = [];
   if (alertTags.length > 0) lines.push(`⚠️ ${alertTags.join(" / ")}`);
-  lines.push(weatherLine);
-  lines.push(delayLine);
-  lines.push("💬 メッセージ:");
   lines.push(helloMessage.trim());
   return truncateText(lines.join("\n"), 1900);
 }
@@ -194,12 +185,10 @@ async function hello(client, options = {}) {
 
       const title =
         alertTags.length > 0
-          ? `${alertTags.join(" ")} 今日の朝メモ`
-          : "今日の朝メモ";
-      const description =
-        alertTags.length > 0
-          ? `【${alertTags.join("・")}】\n${helloMessage}`
-          : helloMessage;
+          ? `${alertTags.join(" ")}`
+          : ""; // タイトルを空にするとEmbedのタイトル行が表示されなくなります（フィールドのみ表示）
+      // content側に挨拶文が含まれるため、通知との重複を避けるためにEmbed側のdescriptionは空にします。
+      const description = "";
 
       const weatherTelop =
         weatherData && typeof weatherData === "object" && weatherData.telop
@@ -234,7 +223,6 @@ async function hello(client, options = {}) {
       const embed = new EmbedBuilder()
         .setColor(isDelay ? 0xff0000 : isRainAlert ? 0xf5a623 : 0x87ceeb)
         .setTitle(title)
-        .setDescription(description)
         .setTimestamp();
 
       embed.addFields(
@@ -267,8 +255,6 @@ async function hello(client, options = {}) {
       const messagePayload = {
         content: buildNotificationContent({
           helloMessage,
-          weatherData,
-          delayList,
           alertTags,
         }),
         embeds: [embed],
